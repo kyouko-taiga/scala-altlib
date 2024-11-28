@@ -233,7 +233,7 @@ trait Collection:
      *
      *  - Complexity: O(n) where n is the length of the shortest collection.
      */
-    @Inout def elementsEqualBy[C](@Inout other: C)(areEqual: (Element, Element) => Boolean)(using
+    def elementsEqualBy[C](@Inout other: C)(areEqual: (Element, Element) => Boolean)(using
         C is Collection { type Element = me.Element }
     ): Boolean =
       var lhs = self.stream
@@ -249,7 +249,7 @@ trait Collection:
      *
      *  - Complexity: O(n) where n is the length of the shortest stream.
      */
-    @Inout def elementsEqual[C](other: C)(using
+    def elementsEqual[C](other: C)(using
         C is Collection { type Element = me.Element }
     ): Boolean =
       self.elementsEqualBy(other) { (x, y) => x.equals(y) }
