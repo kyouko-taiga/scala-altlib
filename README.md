@@ -9,6 +9,98 @@ For more information on the sbt-dotty plugin, see the
 
 ### Notes
 
+#### Default associated types
+
+In Swift we can write this:
+
+```swift
+protocol Collection {
+  associatedtype Position
+  associatedtype Element
+  associatedtype Slice: Collection = DefaultSlice<Self>
+    where Slice.Position == Position, Slice.Element == Element
+
+  var start: Position { get }
+  var end: Position { get }
+  func position(after p: Position) -> Position
+  func at(_ p: Position) -> Element
+}
+
+struct DefaultSlice<Base: Collection> {
+  let base: Base
+  let start: Base.Position
+  let end: Base.Position
+}
+
+extension DefaultSlice: Collection {
+  typealias Position = Base.Position
+  typealias Element = Base.Element
+  func position(after p: Base.Position) -> Base.Position { base.position(after: p) }
+  func at(_ p: Base.Position) -> Base.Element { base.at(p) }
+}
+```
+
+We can get very close in Scala using this setup:
+
+```scala
+trait Collection:
+  me =>
+
+  type Self
+  type Position
+  type Element
+
+  // Note: the name is important.
+  type Slice : Collection {
+    type Position = me.Position
+    type Element = me.Element
+  } as SliceIsCollection
+
+  extension (self: Self)
+    def start: Position
+    def end: Position
+    def positionAfter(p: Position): Position
+    def apply(p: Position): Element
+    def between(low: Position, high: Position): Slice
+
+trait CollectionWithSlice extends Collection:
+  me =>
+
+  class Slice(val base: Self, val start: Position, val end: Position):
+    final def positionAfter(p: Position): Position = base.positionAfter(p)
+    final def apply(p: Position): Element = base(p)
+
+  override given Slice is CollectionWithSlice as SliceIsCollection:
+    type Position = me.Position
+    type Element = me.Element
+
+    extension (self: Self)
+      def start: Position = self.start
+      def end: Position = self.end
+      def positionAfter(p: Position): Position = self.positionAfter(p)
+      def apply(p: Position): Element = self.apply(p)
+
+  extension (self: Self)
+    def between(low: Position, high: Position): Slice =
+      new Slice(self, low, high)
+```
+
+That isn't ideal.
+As we provide the default associated type in another trait, users will have to implement `CollectionWithSlice` rather than just `Collection` if they want the default associated type.
+Switching names does not really solve the issue because now the longer name would have to be used in generic functions.
+In other words, we either ask users to implement `CollectionWithSlice` in their given or they must use `CollectionWithCustomSlice` as a context bound on generic algorithms.
+
+#### Stating conformance for refinements is tedious
+
+The trick of exporting requirements in a trait/mixin causes a lot of boilerplate.
+I think that perhaps refinements should not be expressed through subtyping.
+
+#### Dependent givens
+
+C.f. `Slice` and `ReversedCollection`
+
+#### Something else
+
 Consider the following setup (under modularity):
 
 ```scala

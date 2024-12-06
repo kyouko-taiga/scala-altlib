@@ -27,6 +27,7 @@ class CollectionTests extends munit.FunSuite:
 
   test("first"):
     assertEquals(0L.first, None)
+    assertEquals(0x010203L.first, Some(3.toByte))
 
   test("firstWhere"):
     val a = 0x010203L
@@ -107,29 +108,25 @@ class CollectionTests extends munit.FunSuite:
     val b = 0x030201L
     assertEquals(a.elementsEqual(b), false)
 
-end CollectionTests
-
-class CollectionSliceTests extends munit.FunSuite:
-
-  test("equals"):
+  test("Slice.equals"):
     val a = 0x010203L
     a.withSlice(0, 2) { (s) =>
       assert(a.withSlice(0, 2) { (t) => s == t })
       assert(a.withSlice(1, 2) { (t) => s != t })
     }
 
-  test("hashCode"):
+  test("Slice.hashCode"):
     val a = 0x010203L
     a.withSlice(0, 2) { (s) =>
       assert(a.withSlice(0, 2) { (t) => s.hashCode == t.hashCode })
       assert(a.withSlice(1, 3) { (t) => s.hashCode != t.hashCode })
     }
 
-  test("is Collection"):
+  test("Slice is Collection"):
     val a = 0x010203L
     assert(a.withSlice(0, 2) { (s) => s.elementsEqual(0x0203L) })
 
-end CollectionSliceTests
+end CollectionTests
 
 given Long is Collection:
 
@@ -138,21 +135,21 @@ given Long is Collection:
 
   extension (self: Long)
 
-    def start: Int =
+    final def start: Int =
       0
 
-    def end: Int =
+    final def end: Int =
       def loop(i: Int, a: Long): Int =
         if a == 0 then i else loop(i + 1, a >> 8)
       loop(0, self)
 
-    def positionAfter(p: Int): Int =
+    final def positionAfter(p: Int): Int =
       p + 1
 
-    def isWithin(p: Int, low: Int, high: Int): Boolean =
+    final def isWithin(p: Int, low: Int, high: Int): Boolean =
       (p >= 0) && (p < high)
 
-    def apply(p: Int) =
+    final def apply(p: Int) =
       ((self >> (p * 8)) & 0xff).toByte
 
   end extension

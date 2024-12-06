@@ -164,6 +164,12 @@ trait Stream:
     ): Boolean =
       self.elementsEqualBy(other) { (x, y) => x.equals(y) }
 
+    @Inout def elementsEqual2[S: Stream.OfElem[Element]](@Inout other: S): Boolean =
+      self.elementsEqualBy(other) { (x, y) => x.equals(y) }
+
   end extension
 
 end Stream
+
+object Stream:
+  type OfElem[E] = Stream { type Element = E }

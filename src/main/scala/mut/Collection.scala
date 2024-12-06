@@ -19,11 +19,84 @@ trait Collection:
   /** The type of the elements in the collection. */
   type Element
 
-  /** The type of a slice of the collection. */
-  type Slice = Collection.DefaultSlice[Position, Element]
+  /** The type of a slice of `Self`. */
+  final class Slice(val base: Self, val start: Position, val end: Position):
 
-  /** The type of streams over the collection. */
-  type Stream = Collection.DefaultStream[Element]
+    /** Returns a hash of the salient parts of `this`. */
+    final override def hashCode: Int =
+      var h = 0x811c9dc5
+      h = MurmurHash3.mix(h, base.hashCode)
+      h = MurmurHash3.mix(h, start.hashCode)
+      h = MurmurHash3.mixLast(h, end.hashCode)
+      MurmurHash3.finalizeHash(h, 3)
+
+    /** Returns `true` iff `this` is equal to `other`. */
+    final override def equals(other: Any): Boolean =
+      other match
+        case o: Slice => (this.base == o.base) && (this.start == o.start) && (this.end == o.end)
+        case _ => false
+
+  end Slice
+
+  given Slice is Collection:
+
+    type Position = me.Position
+    type Element = me.Element
+
+    extension (self: Self)
+      final def start: Position =
+        self.start
+      final def end: Position =
+        self.end
+      final def positionAfter(p: Position): Position =
+        me.positionAfter(self.base)(p)
+      final def isWithin(p: Position, low: Position, high: Position): Boolean =
+        me.isWithin(self.base)(p, low, high)
+      final def apply(p: Position): Element =
+        require(self.isWithin(p, self.start, self.end), "position is out of bounds")
+        me.apply(self.base)(p)
+
+  end given
+
+  /** The type of streams over an instance of `Self`. */
+  final class Stream(val base: Self):
+
+    /** The current position of the stream in `base`. */
+    private var current = base.start
+
+    /** The "past-the-end" position of `base`. */
+    private val end = base.end
+
+    /** Returns the next element or `None` if `this` reached the end of the iterated sequence. */
+    @Inout final def next: Option[Element] =
+      if current == end then None else
+        val e = base(current)
+        current = base.positionAfter(current)
+        Some(e)
+
+    /** Returns a hash of the salient parts of `this`. */
+    final override def hashCode: Int =
+      base.hashCode ^ current.hashCode
+
+    /** Returns `true` iff `this` is equal to `other`. */
+    final override def equals(other: Any): Boolean =
+      other match
+        case o: Stream => (this.base == o.base) && (this.current == o.current)
+        case _ => false
+
+  end Stream
+
+  given Stream is mut.Stream:
+
+    type Element = me.Element
+
+    extension (self: Self)
+      @Inout final def next: Option[Element] =
+        self.next
+      final override def underestimatedCount: Int =
+        self.base.count
+
+  end given
 
   extension (self: Self)
 
@@ -97,21 +170,24 @@ trait Collection:
      *  - Complexity: O(1)
      */
     def withSlice[T](low: Position, high: Position)(
-        // FIXME: Collection.DefaultSlice[Position, Element]^ => T
+        // FIXME: Slice^ => T
         // Adding `^` makes implicit resolution fail in `CollectionSliceTests`.
-        action: Collection.DefaultSlice[Position, Element] => T
+        action: Slice => T
     ): T =
-      action(Collection.DefaultSlice(this, self, low, high))
+      action(Slice(self, low, high))
 
     /** Returns an stream producing the elements in `self`. */
     def stream: Stream =
-      Collection.DefaultStream(this, self)
+      Stream(self)
 
     /** Returns the first element in `self` or `None` if `self` is empty. */
     def first: Option[Element] =
-      if isEmpty then None else Some(self(start))
+      if self.isEmpty then None else Some(self(self.start))
 
-    /** Returns the first element in `self` that satisfies `predicate`. */
+    /** Returns the first element in `self` that satisfies `predicate`.
+     *
+     *  - Complexity: O(n) where n is the length of `self`.
+     */
     def firstWhere(predicate: Element => Boolean): Option[Element] =
       self.firstPositionWhere(predicate).map(self(_))
 
@@ -256,120 +332,21 @@ trait Collection:
 
   end extension
 
-object Collection:
+// object Collection:
 
-  // FIXME: We probably need to take `T: Collection` and track the witness.
+//   /** A pair of positions describing the bounds of a slice. */
+//   final class Bounds[P] private[Collection] (val low: P, val high: P):
 
-  /** A slice of a collection.
-   *
-   * @param start The position of the first element in the slice.
-   * @param end The "past-the-end" position of the slice.
-   */
-  final class DefaultSlice[P, E](
-      C: Collection { type Position = P; type Element = E }, private val base: C.Self,
-      val start: P, val end: P
-  ):
+//     /** Returns a hash of the salient parts of `this`. */
+//     final override def hashCode: Int =
+//       this.low.hashCode ^ this.high.hashCode
 
-    /** The position immediately after `p`. */
-    final def positionAfter(p: P): P =
-      base.positionAfter(p)
+//     /** Returns `true` iff `this` is equal to `other`. */
+//     final override def equals(other: Any): Boolean =
+//       other match
+//         case o: Bounds[_] => (this.low == o.low) && (this.high == o.high)
+//         case _ => false
 
-    /** Returns `true` iff `p` is in the half-open range [`low`, `high`). */
-    def isWithin(p: P, low: P, high: P): Boolean =
-      base.isWithin(p, low, high)
+//   end Bounds
 
-    /** Returns the element at position `p`.
-     *
-     *  @param p: The position of the element to access, which is defined in `self`.
-     */
-    final def apply(p: P): E =
-      require(base.isWithin(p, start, end), "position is out of bounds")
-      base(p)
-
-    /** Returns a hash of the salient parts of `this`. */
-    final override def hashCode: Int =
-      var h = 0x811c9dc5
-      h = MurmurHash3.mix(h, base.hashCode)
-      h = MurmurHash3.mix(h, start.hashCode)
-      h = MurmurHash3.mixLast(h, end.hashCode)
-      MurmurHash3.finalizeHash(h, 3)
-
-    /** Returns `true` iff `this` is equal to `other`. */
-    final override def equals(other: Any): Boolean =
-      other match
-        case o: DefaultSlice[_, _] =>
-          (this.base == o.base) && (this.start == o.start) && (this.end == o.end)
-        case _ => false
-
-  end DefaultSlice
-
-  // /** A pair of positions describing the bounds of a slice. */
-  // final class Bounds[P] private[Collection] (val low: P, val high: P):
-
-  //   /** Returns a hash of the salient parts of `this`. */
-  //   final override def hashCode: Int =
-  //     this.low.hashCode ^ this.high.hashCode
-
-  //   /** Returns `true` iff `this` is equal to `other`. */
-  //   final override def equals(other: Any): Boolean =
-  //     other match
-  //       case o: Bounds[_] => (this.low == o.low) && (this.high == o.high)
-  //       case _ => false
-
-  // end Bounds
-
-  /** A stream producing the elements of an arbitrary collection. */
-  final class DefaultStream[E](C: Collection { type Element = E }, private val base: C.Self):
-
-    /** The current position of the stream in `base`. */
-    private var current = base.start
-
-    /** The "past-the-end" position of `base`. */
-    private val end = base.end
-
-    /** Returns the next element or `None` if `this` reached the end of the iterated sequence. */
-    @Inout final def next: Option[E] =
-      if current == end then None else
-        val e = base(current)
-        current = base.positionAfter(current)
-        Some(e)
-
-    /** A value less than or equal to the number of elements in `self`. */
-    final def underestimatedCount: Int =
-      base.count
-
-    /** Returns a hash of the salient parts of `this`. */
-    final override def hashCode: Int =
-      base.hashCode ^ current.hashCode
-
-    /** Returns `true` iff `this` is equal to `other`. */
-    final override def equals(other: Any): Boolean =
-      other match
-        case o: DefaultStream[_] => (this.base == o.base) && (this.current == o.current)
-        case _ => false
-
-  end DefaultStream
-
-end Collection
-
-given [P, E] => Collection.DefaultSlice[P, E] is Collection:
-
-  type Position = P
-  type Element = E
-
-  extension (self: Self)
-    def start: P = self.start
-    def end: P = self.end
-    def positionAfter(p: P): P = self.positionAfter(p)
-    def isWithin(p: P, low: P, high: P): Boolean = self.isWithin(p, low, high)
-    def apply(p: P): E = self(p)
-
-given [E] => Collection.DefaultStream[E] is Stream:
-
-  type Element = E
-
-  extension (self: Self)
-    @Inout def next: Option[E] = self.next
-    final override def underestimatedCount: Int = self.underestimatedCount
-
-end given
+// end Collection
