@@ -4,20 +4,6 @@ import language.experimental.modularity
 
 import annotation.tailrec
 
-// trait BidirectionalCollection1:
-//   me =>
-
-//   type Self: Collection as SelfAsCollection1
-//   val SelfAsCollection = SelfAsCollection1
-
-//   extension (self: Self)
-//     def positionBefore(p: SelfAsCollection.Position): SelfAsCollection.Position
-
-//   given SelfAsCollection.Slice is BidirectionalCollection1:
-//     // val SelfAsCollection = me.SelfAsCollection.SliceIsCollection
-//     extension (self: Self)
-//       def positionBefore(p: Position): me.SelfAsCollection.Position = ???
-
 /** A collection that supports backward traversal. */
 trait BidirectionalCollection extends Collection:
   me =>
