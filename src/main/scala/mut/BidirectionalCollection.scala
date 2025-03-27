@@ -91,9 +91,10 @@ trait BidirectionalCollection extends Collection:
 
   end ReversedCollection
 
-  given ReversedCollection is Collection:
+  trait ReversedCollectionIsCollection extends Collection:
 
-    opaque type Position = me.Position
+    type Self = ReversedCollection
+    type Position = me.Position
     type Element = me.Element
 
     extension (self: Self)
@@ -108,28 +109,15 @@ trait BidirectionalCollection extends Collection:
       final def apply(p: Position): Element =
         me.apply(self.base)(me.positionBefore(self.base)(p))
 
-  end given
 
-  given ReversedCollection is BidirectionalCollection:
+  given ReversedCollectionIsCollection()
 
-    opaque type Position = me.Position
-    type Element = me.Element
+  trait ReversedCollectionIsBidirectionalCollection extends ReversedCollectionIsCollection:
 
     extension (self: Self)
-      final def start: Position =
-        me.end(self.base)
-      final def end: Position =
-        me.start(self.base)
-      final def positionAfter(p: Position): Position =
-        me.positionBefore(self.base)(p)
-      final def isWithin(p: Position, low: Position, high: Position): Boolean =
-        me.isWithin(self.base)(p, low, high)
-      final def apply(p: Position): Element =
-        me.apply(self.base)(me.positionBefore(self.base)(p))
-
       final def positionBefore(p: Position): Position =
         me.positionAfter(self.base)(p)
 
-  end given
+  given ReversedCollectionIsBidirectionalCollection()
 
 end BidirectionalCollection
